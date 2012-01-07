@@ -2,6 +2,7 @@
 #ifndef NDEBUG
 #include <stdio.h>
 #endif
+#include "my_malloc.h"
 
 struct memory_block {
   char occupied;
@@ -63,6 +64,31 @@ void * my_malloc(size_t n) {
   return cur->data;
 }
 
+void merge_blocks(struct free_memory_block * b1, struct free_memory_block * b2) {
+  memstats();
+  size_t new_length = b1->length + b2->length;
+  b1->next_free = b2->next_free;
+  if (b2->next_free)
+    b2->next_free->prev_free = b1;
+  if (last_free == b2)
+    last_free = b1;
+  if (last == (struct memory_block *) b2)
+    last = (struct memory_block *) b1;
+  b1->length = new_length;
+}
+
+void merge_check(struct free_memory_block * block) {
+  char merge_prev = (block->prev_free && next_block(block->prev_free) == (struct memory_block *) block);
+  char merge_next = (next_block(block) == (struct memory_block *) block->next_free);
+
+  if (merge_prev) {
+    merge_blocks(block->prev_free, block);
+  }
+  if (merge_next) {
+    merge_blocks(block->prev_free, block->next_free);
+  }
+}
+
 void my_free(void * ptr) {
   struct free_memory_block * block = (struct free_memory_block *) (ptr - data_offset);
   /* don't set block->occupied = 0 yet */
@@ -81,6 +107,7 @@ void my_free(void * ptr) {
     }
     block->prev_free = last_free;
     last_free = block;
+    merge_check(block);
     return;
   }
   block->occupied = 0;
@@ -93,6 +120,8 @@ void my_free(void * ptr) {
     fcur->prev_free->next_free = block;
   }
   fcur->prev_free = block;
+
+  merge_check(block);
 }
 
 void memstats() {
@@ -119,6 +148,7 @@ void memstats() {
 
 void memconsistency() {
 #ifndef NDEBUG
+  memstats();
   if (first == NULL) return;
   struct memory_block * cur = first;
   int saw_free = 0;
@@ -137,7 +167,7 @@ void memconsistency() {
 	printf("%p: Expected prev_free = %p, got %p\n", fcur, last_seen, fcur->prev_free);
       }
       if (seen_any_free && fcur != expect) {
-	printf("%p: Expected %p to be the next free block", fcur, expect);
+	printf("%p: Expected %p to be the next free block\n", fcur, expect);
       }
       ++saw_free;
       last_seen = fcur;
@@ -146,6 +176,9 @@ void memconsistency() {
     }
     if (cur == last) break;
     cur = next_block(cur);
+  }
+  if (last_seen != last_free) {
+    printf("Expected %p to be the last free block, got %p\n", last_free, last_seen);
   }
 #endif // NDEBUG
 }
