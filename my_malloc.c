@@ -58,22 +58,25 @@ void * my_malloc(size_t n) {
 
 void my_free(void * ptr) {
   struct free_memory_block * block = (struct free_memory_block *) (ptr - data_offset);
-  block->occupied = 0;
+  /* don't set block->occupied = 0 yet */
 
   /* Find next free block from here */
-  struct memory_block * cur = next_block(block);
+  struct memory_block * cur = (struct memory_block *) block;
   while (cur != last && cur->occupied) {
     cur = next_block(cur);
   }
   if (cur->occupied) {
     /* We're the last free block */
+    block->occupied = 0;
     block->next_free = NULL;
     if (last_free) {
       last_free->next_free = block;
     }
+    block->prev_free = last_free;
     last_free = block;
     return;
   }
+  block->occupied = 0;
   /* cur is free */
   struct free_memory_block * fcur = (struct free_memory_block *) cur;
   /* insert into freelist */
