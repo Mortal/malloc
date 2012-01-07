@@ -116,4 +116,37 @@ void memstats() {
   printf("End memory stats\n");
 #endif // NDEBUG
 }
+
+void memconsistency() {
+#ifndef NDEBUG
+  if (first == NULL) return;
+  struct memory_block * cur = first;
+  int saw_free = 0;
+  struct free_memory_block * last_seen = NULL;
+  struct free_memory_block * expect = NULL;
+  char seen_any_free = 0;
+  for (;;) {
+    if (cur->occupied) {
+      saw_free = 0;
+    } else {
+      struct free_memory_block * fcur = (struct free_memory_block *) cur;
+      if (saw_free) {
+	printf("%p: Seen %d free blocks in a row\n", fcur, saw_free);
+      }
+      if (fcur->prev_free != last_seen) {
+	printf("%p: Expected prev_free = %p, got %p\n", fcur, last_seen, fcur->prev_free);
+      }
+      if (seen_any_free && fcur != expect) {
+	printf("%p: Expected %p to be the next free block", fcur, expect);
+      }
+      ++saw_free;
+      last_seen = fcur;
+      expect = fcur->next_free;
+      seen_any_free = 1;
+    }
+    if (cur == last) break;
+    cur = next_block(cur);
+  }
+#endif // NDEBUG
+}
 // vim:set sw=2 ts=8 sts=2:
