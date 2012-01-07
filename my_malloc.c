@@ -28,17 +28,24 @@ static struct memory_block * new_block(size_t sz) {
 #define next_block(cur) ((struct memory_block *) (((char *) cur) + cur->length))
 
 void * my_malloc(size_t n) {
+  /* We need a bit of space for the freelist pointers */
   if (n < min_size) n = min_size;
+
+  /* First bit of memory allocated */
   if (first == NULL) {
     last = first = new_block(data_offset + n);
     return first->data;
   }
+
+  /* Find a free piece of memory */
   struct memory_block * cur = first;
   while (cur->occupied || cur->length < n) {
     if (cur == last) break;
     cur = next_block(cur);
   }
+
   if (cur == last) {
+    /* No free piece, allocate new thing */
     last = cur = new_block(data_offset + n);
   } else {
     cur->occupied = 1;
