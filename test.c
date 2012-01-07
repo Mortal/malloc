@@ -23,3 +23,4 @@ int main(int argc, char ** argv) {
   memstats();
   return 0;
 }
+// vim:set sw=2 ts=8 sts=2:
