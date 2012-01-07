@@ -51,7 +51,14 @@ void * my_malloc(size_t n) {
     /* No free piece, allocate new thing */
     last = cur = new_block(data_offset + n);
   } else {
-    cur->occupied = 1;
+    struct free_memory_block * fcur = (struct free_memory_block *) cur;
+    fcur->occupied = 1;
+    if (fcur->prev_free)
+      fcur->prev_free->next_free = fcur->next_free;
+    if (fcur->next_free)
+      fcur->next_free->prev_free = fcur->prev_free;
+    else
+      last_free = fcur->prev_free;
   }
   return cur->data;
 }
