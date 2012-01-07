@@ -20,7 +20,7 @@ static const size_t data_offset = sizeof(struct memory_block);
 static const size_t min_size = 2*sizeof(struct free_memory_block *);
 
 static struct memory_block * new_block(size_t sz) {
-  struct memory_block * res = (struct memory_block *) (sbrk(sz) - sz);
+  struct memory_block * res = (struct memory_block *) sbrk(sz);
   res->occupied = 1;
   res->length = sz;
   return res;
@@ -29,9 +29,9 @@ static struct memory_block * new_block(size_t sz) {
 
 void * my_malloc(size_t n) {
   if (n < min_size) n = min_size;
-  if (first == 0) {
+  if (first == NULL) {
     last = first = new_block(data_offset + n);
-    return first;
+    return first->data;
   }
   struct memory_block * cur = first;
   while (cur->occupied || cur->length < n) {
@@ -43,7 +43,7 @@ void * my_malloc(size_t n) {
   } else {
     cur->occupied = 1;
   }
-  return cur;
+  return cur->data;
 }
 
 void my_free(void * ptr) {
