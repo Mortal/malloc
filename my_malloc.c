@@ -48,24 +48,41 @@ void * my_malloc(size_t n) {
     cur = next_block(cur);
   }
 
-  if (cur == last) {
+  if (cur->occupied) {
     /* No free piece, allocate new thing */
     last = cur = new_block(data_offset + n);
   } else {
     struct free_memory_block * fcur = (struct free_memory_block *) cur;
     fcur->occupied = 1;
-    if (fcur->prev_free)
-      fcur->prev_free->next_free = fcur->next_free;
-    if (fcur->next_free)
-      fcur->next_free->prev_free = fcur->prev_free;
-    else
-      last_free = fcur->prev_free;
+    if (data_offset + n + data_offset + min_size > fcur->length) {
+      if (fcur->prev_free)
+	fcur->prev_free->next_free = fcur->next_free;
+      if (fcur->next_free)
+	fcur->next_free->prev_free = fcur->prev_free;
+      else
+	last_free = fcur->prev_free;
+    } else {
+      size_t rest_length = fcur->length - data_offset - n;
+      fcur->length = data_offset + n;
+      struct free_memory_block * rest = (struct free_memory_block *) next_block(cur);
+      rest->occupied = 0;
+      rest->length = rest_length;
+      rest->prev_free = fcur->prev_free;
+      if (rest->prev_free)
+	rest->prev_free->next_free = rest;
+      rest->next_free = fcur->next_free;
+      if (rest->next_free)
+	rest->next_free->prev_free = rest;
+      else
+	last_free = rest;
+      if (last == cur)
+	last = (struct memory_block *) rest;
+    }
   }
   return cur->data;
 }
 
 void merge_blocks(struct free_memory_block * b1, struct free_memory_block * b2) {
-  memstats();
   size_t new_length = b1->length + b2->length;
   b1->next_free = b2->next_free;
   if (b2->next_free)
@@ -133,10 +150,10 @@ void memstats() {
     struct memory_block * cur = first;
     for (;;) {
       if (cur->occupied) {
-	printf("%p %db occupied\n", cur, cur->length);
+	printf("* %p %db occupied\n", cur, cur->length);
       } else {
 	struct free_memory_block * fcur = (struct free_memory_block *) cur;
-	printf("%p %db free %p %p\n", fcur, fcur->length, fcur->next_free, fcur->prev_free);
+	printf("* %p %db free %p %p\n", fcur, fcur->length, fcur->next_free, fcur->prev_free);
       }
       if (cur == last) break;
       cur = next_block(cur);
@@ -148,7 +165,6 @@ void memstats() {
 
 void memconsistency() {
 #ifndef NDEBUG
-  memstats();
   if (first == NULL) return;
   struct memory_block * cur = first;
   int saw_free = 0;
@@ -161,13 +177,13 @@ void memconsistency() {
     } else {
       struct free_memory_block * fcur = (struct free_memory_block *) cur;
       if (saw_free) {
-	printf("%p: Seen %d free blocks in a row\n", fcur, saw_free);
+	printf("Memory consistency %p: Seen %d free blocks in a row\n", fcur, saw_free);
       }
       if (fcur->prev_free != last_seen) {
-	printf("%p: Expected prev_free = %p, got %p\n", fcur, last_seen, fcur->prev_free);
+	printf("Memory consistency %p: Expected prev_free = %p, got %p\n", fcur, last_seen, fcur->prev_free);
       }
       if (seen_any_free && fcur != expect) {
-	printf("%p: Expected %p to be the next free block\n", fcur, expect);
+	printf("Memory consistency %p: Expected %p to be the next free block\n", fcur, expect);
       }
       ++saw_free;
       last_seen = fcur;
@@ -178,7 +194,7 @@ void memconsistency() {
     cur = next_block(cur);
   }
   if (last_seen != last_free) {
-    printf("Expected %p to be the last free block, got %p\n", last_free, last_seen);
+    printf("Memory consistency: Expected %p to be the last free block, got %p\n", last_free, last_seen);
   }
 #endif // NDEBUG
 }
