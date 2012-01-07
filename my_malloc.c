@@ -1,4 +1,7 @@
 #include <unistd.h>
+#ifndef NDEBUG
+#include <stdio.h>
+#endif
 
 struct memory_block {
   char occupied;
@@ -56,11 +59,14 @@ void * my_malloc(size_t n) {
 void my_free(void * ptr) {
   struct free_memory_block * block = (struct free_memory_block *) (ptr - data_offset);
   block->occupied = 0;
+
+  /* Find next free block from here */
   struct memory_block * cur = next_block(block);
   while (cur != last && cur->occupied) {
     cur = next_block(cur);
   }
-  if (cur == last) {
+  if (cur->occupied) {
+    /* We're the last free block */
     block->next_free = NULL;
     if (last_free) {
       last_free->next_free = block;
@@ -68,7 +74,9 @@ void my_free(void * ptr) {
     last_free = block;
     return;
   }
+  /* cur is free */
   struct free_memory_block * fcur = (struct free_memory_block *) cur;
+  /* insert into freelist */
   block->next_free = fcur;
   block->prev_free = fcur->prev_free;
   if (fcur->prev_free) {
@@ -76,3 +84,26 @@ void my_free(void * ptr) {
   }
   fcur->prev_free = block;
 }
+
+void memstats() {
+#ifndef NDEBUG
+  printf("Memory stats\n");
+  if (first == NULL) {
+    printf("Nothing allocated\n");
+  } else {
+    struct memory_block * cur = first;
+    for (;;) {
+      if (cur->occupied) {
+	printf("%p %db occupied\n", cur, cur->length);
+      } else {
+	struct free_memory_block * fcur = (struct free_memory_block *) cur;
+	printf("%p %db free %p %p\n", fcur, fcur->length, fcur->next_free, fcur->prev_free);
+      }
+      if (cur == last) break;
+      cur = next_block(cur);
+    }
+  }
+  printf("End memory stats\n");
+#endif // NDEBUG
+}
+// vim:set sw=2 ts=8 sts=2:
